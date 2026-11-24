@@ -1,0 +1,24 @@
+# Binaries and object files
+bin/
+src/*.o
+tests/benchmark_suite
+tests/compute_summary
+tests/test_controller_unit
+tests/test_protocol_unit
+tests/test_queue_unit
+tests/test_robustness
+tests/test_scheduler_unit
+
+# Temporary files and sockets
+*.sock
+/tmp/adaptive_ipc_*
+/tmp/ipc_bench_*
+/tmp/test_adaptive_ipc_*
+/tmp/bench_*
+
+# Python caches
+__pycache__/
+*.pyc
+
+# OS generated
+.DS_Store

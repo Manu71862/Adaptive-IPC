@@ -1,0 +1,21 @@
+scenario,config,throughput_mps,throughput_mb,p50_us,p95_us,p99_us,mean_us,peak_queue,peak_bytes_kib,jain_fairness,state_changes,ctrl_overhead_us
+"1. Normal Traffic","Config A (Fixed Window, FIFO)",772.25,0.78,2921.58,5500.69,5779.07,2943.63,3,3.00,1.0000,0,0.229
+"1. Normal Traffic","Config B (Fixed Threshold, FIFO)",1614.45,1.64,7199.88,13669.54,14340.52,7196.77,3,3.00,1.0000,0,0.351
+"1. Normal Traffic","Config C (Adaptive EWMA, FIFO)",1418.24,1.44,6446.57,13000.53,13922.79,6554.01,3,3.00,1.0000,0,0.364
+"1. Normal Traffic","Config D (Adaptive EWMA, DRR)",1414.36,1.44,6766.40,13655.29,14531.73,6930.03,3,3.00,1.0000,0,2.356
+"2. Sudden Bursts","Config A (Fixed Window, FIFO)",537.69,0.55,2388.25,5416.12,5731.13,2632.67,3,3.00,1.0000,0,0.230
+"2. Sudden Bursts","Config B (Fixed Threshold, FIFO)",850.37,0.86,3063.98,6750.57,7144.30,3279.93,3,3.00,1.0000,0,0.277
+"2. Sudden Bursts","Config C (Adaptive EWMA, FIFO)",978.59,0.99,3556.97,6813.47,7094.77,3590.60,3,3.00,1.0000,0,0.367
+"2. Sudden Bursts","Config D (Adaptive EWMA, DRR)",915.06,0.93,3187.36,6539.12,6897.69,3327.09,3,3.00,1.0000,0,0.355
+"3. Sustained Overload","Config A (Fixed Window, FIFO)",768.11,1.53,3103.77,5820.47,6313.60,3134.80,3,6.00,1.0000,0,0.256
+"3. Sustained Overload","Config B (Fixed Threshold, FIFO)",1402.85,2.79,7176.28,14354.47,15681.31,7337.49,3,6.00,1.0000,0,0.303
+"3. Sustained Overload","Config C (Adaptive EWMA, FIFO)",1417.65,2.82,6575.44,12593.40,14313.66,6439.70,3,6.00,1.0000,0,0.456
+"3. Sustained Overload","Config D (Adaptive EWMA, DRR)",1419.34,2.83,6840.31,13451.08,14413.37,6904.51,3,6.00,1.0000,0,0.399
+"4. Competing Senders (Asymmetric Sizes)","Config A (Fixed Window, FIFO)",465.56,1.03,2146.35,4005.48,4201.96,2145.01,2,4.50,0.6337,0,0.315
+"4. Competing Senders (Asymmetric Sizes)","Config B (Fixed Threshold, FIFO)",886.69,1.98,5128.85,12756.77,14491.12,5538.51,15,56.50,0.6311,0,0.294
+"4. Competing Senders (Asymmetric Sizes)","Config C (Adaptive EWMA, FIFO)",1134.14,3.48,5044.78,9785.45,10694.19,5112.37,2,4.50,0.5456,0,0.426
+"4. Competing Senders (Asymmetric Sizes)","Config D (Adaptive EWMA, DRR)",888.64,2.00,5246.17,11267.94,13003.45,5290.84,8,25.00,0.6286,0,0.377
+"5. Receiver Slowdown & Recovery","Config A (Fixed Window, FIFO)",583.23,0.59,3311.13,252562.21,255456.80,22432.37,3,3.00,1.0000,0,0.257
+"5. Receiver Slowdown & Recovery","Config B (Fixed Threshold, FIFO)",890.15,0.90,8216.66,261989.69,264660.81,55876.30,3,3.00,1.0000,0,0.383
+"5. Receiver Slowdown & Recovery","Config C (Adaptive EWMA, FIFO)",964.77,0.98,7381.49,260295.15,263260.47,51972.72,3,3.00,1.0000,0,0.460
+"5. Receiver Slowdown & Recovery","Config D (Adaptive EWMA, DRR)",891.07,0.90,7708.06,261959.36,264661.26,54960.08,3,3.00,1.0000,0,0.436
