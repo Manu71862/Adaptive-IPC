@@ -33,7 +33,7 @@ TEST_COMPUTE_BIN:= $(TEST_DIR)/compute_summary
 
 TEST_BINS := $(TEST_PROTO_BIN) $(TEST_QUEUE_BIN) $(TEST_CTRL_BIN) $(TEST_SCHED_BIN) $(TEST_ROBUST_BIN) $(TEST_COMPUTE_BIN)
 
-.PHONY: all binaries tests test benchmark run clean help
+.PHONY: all binaries tests test benchmark run clean help sanitizer plots validate
 
 all: binaries $(TEST_BINS) $(BENCH_SUITE_BIN)
 	@echo ""
@@ -118,10 +118,37 @@ clean:
 	rm -f /tmp/adaptive_ipc_*.sock /tmp/ipc_bench_*.sock /tmp/test_adaptive_ipc_*.sock
 	rm -f /tmp/bench_broker_*.csv /tmp/bench_recv_*.csv
 
+sanitizer: clean
+	@echo "Building and running all tests under AddressSanitizer & UndefinedBehaviorSanitizer..."
+	@mkdir -p $(BIN_DIR) $(RES_DIR)
+	$(CC) $(CFLAGS) -fsanitize=address,undefined -g -O1 -o $(TEST_PROTO_BIN) $(TEST_DIR)/test_protocol_unit.c $(SRC_DIR)/common.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -fsanitize=address,undefined -g -O1 -o $(TEST_QUEUE_BIN) $(TEST_DIR)/test_queue_unit.c $(SRC_DIR)/queue.c $(SRC_DIR)/common.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -fsanitize=address,undefined -g -O1 -o $(TEST_CTRL_BIN) $(TEST_DIR)/test_controller_unit.c $(SRC_DIR)/controller.c $(SRC_DIR)/common.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -fsanitize=address,undefined -g -O1 -o $(TEST_SCHED_BIN) $(TEST_DIR)/test_scheduler_unit.c $(SRC_DIR)/scheduler.c $(SRC_DIR)/queue.c $(SRC_DIR)/common.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -fsanitize=address,undefined -g -O1 -o $(BROKER_BIN) $(SRC_DIR)/broker.c $(SRC_DIR)/common.c $(SRC_DIR)/queue.c $(SRC_DIR)/controller.c $(SRC_DIR)/scheduler.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -fsanitize=address,undefined -g -O1 -o $(SENDER_BIN) $(SRC_DIR)/sender.c $(SRC_DIR)/common.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -fsanitize=address,undefined -g -O1 -o $(RECEIVER_BIN) $(SRC_DIR)/receiver.c $(SRC_DIR)/common.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -fsanitize=address,undefined -g -O1 -o $(TEST_ROBUST_BIN) $(TEST_DIR)/test_robustness.c $(SRC_DIR)/common.c $(LDFLAGS)
+	./$(TEST_PROTO_BIN)
+	./$(TEST_QUEUE_BIN)
+	./$(TEST_CTRL_BIN)
+	./$(TEST_SCHED_BIN)
+	./$(TEST_ROBUST_BIN)
+	@echo "All unit & robustness tests passed cleanly under AddressSanitizer and UndefinedBehaviorSanitizer!"
+
+plots:
+	python3 scripts/generate_plots.py
+
+validate:
+	./scripts/validate_project.sh
+
 help:
 	@echo "Targets:"
 	@echo "  all       : Build broker, sender, receiver, unit tests, and benchmark suite"
 	@echo "  tests     : Compile and run all unit and robustness test suites"
-	@echo "  benchmark : Run full 4-configuration 5-scenario evaluation harness"
+	@echo "  benchmark : Run full 4-configuration 6-scenario evaluation harness"
+	@echo "  sanitizer : Build and execute unit tests under AddressSanitizer & UndefinedBehaviorSanitizer"
+	@echo "  plots     : Generate publication-quality figures in docs/figures/"
+	@echo "  validate  : Run end-to-end project validation script"
 	@echo "  run       : Build everything, run all tests, and execute full benchmark"
 	@echo "  clean     : Clean binaries, object files, temporary sockets, and scratch CSVs"

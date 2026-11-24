@@ -2,7 +2,7 @@
 
 [![C/C++ Build](https://img.shields.io/badge/Language-Pure%20C%2FC%2B%2B-blue.svg)](https://gcc.gnu.org/)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86__64-orange.svg)](https://www.kernel.org/)
-[![Tests](https://img.shields.io/badge/Unit%20%26%20Robustness%20Tests-108%2F108%20Passing-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Unit%20%26%20Robustness%20Tests-140%2F140%20Passing-brightgreen.svg)]()
 [![Zero Python](https://img.shields.io/badge/Dependencies-Zero%20Python-red.svg)]()
 
 An original, high-performance user-space Inter-Process Communication (IPC) architecture designed in pure C for Linux. It synthesizes **adaptive credit-based backpressure**, **three-state hysteresis rate control**, **byte-equalized credit budgeting**, and **Deficit Round-Robin (DRR) fair scheduling** to eliminate bufferbloat, maintain bounded tail latencies, and prevent throughput starvation across competing heterogeneous flows.
@@ -98,19 +98,28 @@ OS_PROJECT/
 │   └── sender.c            # Sender client with credit accounting, bursts, and rogue mode
 ├── tests/
 │   ├── benchmark_suite.c      # 24-permutation automated benchmark harness (A, B, C, D x 6 scenarios)
-│   ├── test_controller_unit.c # Unit tests: hysteresis hold, withholding, recovery (17 tests)
+│   ├── compute_summary.c      # Arithmetic mean, sample std dev, and CSV summary aggregator
+│   ├── test_controller_unit.c # Unit tests: hysteresis hold, withholding, rate triggers, budget floor (89 tests)
 │   ├── test_protocol_unit.c   # Unit tests: header layout, magic, version, FNV-1a checksum (10 tests)
 │   ├── test_queue_unit.c      # Unit tests: FIFO bounds (64/256 msgs, 1 MiB memory) (18 tests)
 │   ├── test_robustness.c      # Robustness tests: rogue senders, abrupt client disconnects (5 tests)
 │   └── test_scheduler_unit.c  # Unit tests: FIFO timestamp order and DRR byte fairness (18 tests)
 ├── docs/
-│   ├── architecture.md             # Subsystem architecture, framing, and data flow
-│   ├── experimental_methodology.md # Benchmark scenarios, metrics, and parameters
-│   ├── technical_report.md         # Research report with full empirical data and analysis
-│   └── viva_guide.md               # Oral examination preparation guide and Q&A
+│   ├── architecture.md             # Subsystem architecture, framing, sequence & flow diagrams
+│   ├── experimental_methodology.md # Benchmark scenarios, metrics, parameters, and formulas
+│   ├── technical_report.md         # Full IEEE-formatted research report with empirical analysis
+│   ├── viva_guide.md               # Oral examination preparation guide and comprehensive Q&A
+│   └── figures/                    # 7 publication-quality benchmark plots (300 DPI PNGs)
+├── scripts/
+│   ├── generate_plots.py           # Offline visualization script producing all 7 benchmark figures
+│   └── validate_project.sh         # End-to-end automated validation and reproducibility script
 ├── results/
-│   └── benchmark_summary.csv       # Live recorded experimental metrics (24 permutations)
-└── Makefile                        # Build automation and execution targets
+│   ├── benchmark_summary.csv          # Live recorded experimental metrics (mean across 3 runs)
+│   ├── benchmark_summary_baseline.csv # Preserved historical baseline reference
+│   ├── benchmark_run1.csv             # Run 1 raw benchmark execution data
+│   ├── benchmark_run2.csv             # Run 2 raw benchmark execution data
+│   └── benchmark_run3.csv             # Run 3 raw benchmark execution data
+└── Makefile                        # Comprehensive build automation, testing, and validation targets
 ```
 
 ---
@@ -121,11 +130,12 @@ OS_PROJECT/
 - GCC / G++ (v9.0 or newer)
 - GNU Make
 - Standard Linux x86_64 environment
+- Python 3 with `matplotlib` (strictly optional, used only for offline figure generation in `scripts/generate_plots.py`)
 
-### One-Command Build and Run
-To cleanly compile all binaries, run the full 68-test unit suite, and execute the comprehensive benchmark suite:
+### Automated One-Command Verification
+To run the complete automated validation suite (clean compilation, 140/140 unit and robustness tests, AddressSanitizer + UndefinedBehaviorSanitizer verification, CSV mathematical integrity check, and figure generation):
 ```bash
-make clean && make run
+./scripts/validate_project.sh
 ```
 
 ### Individual Build Targets
@@ -133,11 +143,20 @@ make clean && make run
 # Compile all core binaries (bin/broker, bin/sender, bin/receiver)
 make binaries
 
-# Compile and run all 5 unit and robustness test suites (68 tests total)
+# Compile and run all 5 unit and robustness test suites (140 assertions total)
 make tests
+
+# Compile and execute the full test suite with AddressSanitizer and UndefinedBehaviorSanitizer
+make sanitizer
 
 # Compile and execute the full 24-permutation experimental benchmark suite
 make benchmark
+
+# Generate 7 publication-quality figures in docs/figures/ from benchmark CSV data
+make plots
+
+# Run the complete project validation script
+make validate
 
 # Remove all build artifacts, temporary test sockets, and binaries
 make clean
@@ -227,9 +246,24 @@ Empirical results statistically aggregated over **3 independent benchmark runs**
 
 ---
 
-## 7. Documentation Index
+## 7. Publication Visualizations
 
-- [System Architecture Specification](file:///home/manohar/Downloads/OS_PROJECT/docs/architecture.md): Subsystem mechanics, framing, state machines, and algorithms.
-- [Experimental Methodology](file:///home/manohar/Downloads/OS_PROJECT/docs/experimental_methodology.md): Detailed scenario setups, metric formulations, and parameters.
-- [Full Technical Report](file:///home/manohar/Downloads/OS_PROJECT/docs/technical_report.md): Research paper with empirical analysis, root cause audit, and comparative discussions.
-- [Oral Examination (Viva) Guide](file:///home/manohar/Downloads/OS_PROJECT/docs/viva_guide.md): In-depth exam preparation guide and question-answer repository.
+The experimental benchmark dataset (`results/benchmark_summary.csv`) has been visualized as 7 publication-quality plots (300 DPI) located in `docs/figures/`, generated via `make plots` (or `python3 scripts/generate_plots.py`):
+
+1. **[Throughput Comparison across 6 Scenarios](docs/figures/throughput_comparison.png)**: Bar plot with error bars illustrating throughput equivalence (~3560 msgs/s) under normal traffic and matching rates across burst, overload, and slowdown scenarios.
+2. **[Latency Percentiles (p50 and p99)](docs/figures/latency_percentiles.png)**: Grouped comparison of median and 99th percentile tail latency across configurations, showing how Config A's shallow queue achieves lower baseline latency.
+3. **[Peak Queue Depth Comparison](docs/figures/queue_depth_comparison.png)**: Queue occupancy across all scenarios demonstrating that queue utilization never exceeds the 64/256 buffer limits.
+4. **[Jain's Byte Fairness Comparison](docs/figures/jains_fairness_comparison.png)**: Fairness index across all scenarios, highlighting the decisive contrast in Scenario 5 between FIFO ($J \approx 0.63–0.71$) and DRR ($J = 1.0000$).
+5. **[Scenario 5 Byte Distribution](docs/figures/scenario5_byte_distribution.png)**: Stacked bar chart showing delivered bytes by flow (Sender 0 vs Sender 1), showing DRR's exact byte parity ($97.5\text{ KiB}$ vs $96.5\text{ KiB}$).
+6. **[Scenario 5 Packet Ratio (Small vs Large)](docs/figures/scenario5_packet_ratio.png)**: Stacked packet count chart contrasting FIFO's 1:1 packet dispatch (99 vs 101 msgs) with DRR's dynamic 7.5:1 ratio (177 vs 23 msgs) to compensate for 1:8 payload size asymmetry.
+7. **[Receiver Stall Latency Surge](docs/figures/receiver_stall_latency.png)**: Tail latency comparison during the 250 ms induced receiver stall, proving safe credit depletion without message loss.
+
+---
+
+## 8. Documentation Index
+
+- [System Architecture Specification](file:///home/manohar/Downloads/OS_PROJECT/docs/architecture.md): Subsystem mechanics, framing, sequence diagrams, and scheduling flowcharts.
+- [Experimental Methodology](file:///home/manohar/Downloads/OS_PROJECT/docs/experimental_methodology.md): Detailed scenario setups, metric formulations, parameters, and limitations.
+- [Full Technical Report](file:///home/manohar/Downloads/OS_PROJECT/docs/technical_report.md): 15-section IEEE/ACM research paper with comprehensive empirical analysis and root-cause audit.
+- [Oral Examination (Viva) Guide](file:///home/manohar/Downloads/OS_PROJECT/docs/viva_guide.md): 21-question exam preparation guide covering architectural rationale and theoretical foundations.
+- [Automated Validation Script](file:///home/manohar/Downloads/OS_PROJECT/scripts/validate_project.sh): Reproducibility runner validating clean builds, 140/140 tests, sanitizers, and plots.

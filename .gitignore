@@ -1,6 +1,6 @@
 # Binaries and object files
 bin/
-src/*.o
+*.o
 tests/benchmark_suite
 tests/compute_summary
 tests/test_controller_unit

@@ -69,6 +69,41 @@ flowchart TD
     Controller -.->|"Admission Credits"| PL
 ```
 
+### 2.1 Communication Sequence & Protocol Lifecycle
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant S as Sender Process
+    participant B as Broker Daemon (poll loop)
+    participant R as Receiver Process
+
+    Note over S,B: Phase 1: Connection & Registration
+    S->>B: connect() to UNIX Domain Socket
+    S->>B: MSG_REGISTER (sender_id = i)
+    B-->>S: MSG_CREDIT (initial grant = 16 [A,B,C] or 8 [D])
+
+    Note over S,B: Phase 2: Transmit DATA Under Credit Budget
+    S->>B: MSG_DATA (seq = k, payload, FNV-1a checksum)
+    Note over B: Enqueue to Sender i Queue<br/>Verify bounds (≤64, ≤256, ≤1 MiB)<br/>Record Rin arrival rate
+
+    Note over B,R: Phase 3: Scheduled Dispatch
+    B->>R: Forward MSG_DATA (FIFO or DRR dispatch)
+    Note over R: Checksum validation<br/>Record transit latency sample
+
+    Note over R,B: Phase 4: Completion & Feedback
+    R->>B: MSG_ACK (sender_id = i, seq = k)
+    Note over B: tracker_on_ack_received()<br/>controller_on_message_completion()<br/>Record Rcomp completion rate
+
+    Note over B,S: Phase 5: Credit Replenishment
+    B-->>S: MSG_CREDIT (replenish up to budget allowance)
+
+    Note over S,B: Phase 6: Graceful Teardown
+    S->>B: MSG_STOP
+    Note over B: tracker_reclaim_unused()<br/>Drain remaining in-flight queue
+    S->>B: shutdown(SHUT_WR) & close(fd)
+```
+
 ---
 
 ## 3. IPC Binary Wire Protocol Specification
@@ -221,7 +256,7 @@ This equalizes the byte transmission pipeline, enabling DRR to interleave packet
 ### 6.1 Strict FIFO Dispatch (`DISPATCH_FIFO`)
 - Inspects the head message of all active sender queues using `queue_peek_sender()`.
 - Dispatches the message with the strictly oldest ingress timestamp `timestamp_ns`.
-- **Limitation**: Suffers from head-of-line blocking and byte-unfairness when large-payload senders (4096B) interleave 1:1 with small-payload senders (512B), allowing the large-payload sender to seize 88% of channel throughput ($J \approx 0.6311$).
+- **Limitation**: Suffers from head-of-line blocking and byte-unfairness when large-payload senders (4096B) interleave 1:1 with small-payload senders (512B), allowing the large-payload sender to seize 88% of channel throughput ($J \approx 0.6294$).
 
 ### 6.2 Deficit Round-Robin Dispatch (`DISPATCH_DRR`)
 - Implements the Shreedhar & Varghese fair queuing algorithm.
@@ -232,9 +267,41 @@ This equalizes the byte transmission pipeline, enabling DRR to interleave packet
   2. While $\text{deficit}[i] \ge \text{head\_packet\_size}$, dequeue and dispatch packet:
      $$\text{deficit}[i] \leftarrow \text{deficit}[i] - \text{packet\_bytes}$$
   3. When $\text{deficit}[i]$ can no longer cover the next packet, advance `current_rr_index = (i + 1) % MAX_SENDERS`.
-  4. Deficit counters persist across rounds while the flow remains active. When the queue is drained, deficit counters reset only upon formal flow reinitialization.
+  4. **Deficit Reset on Flow Idleness**: Whenever a sender's queue becomes empty, its deficit counter is immediately reset to 0 (per standard Shreedhar & Varghese), preventing idle flows from hoarding credits across rounds.
+  5. **Persistence During Active Backlog**: While queues remain continuously backlogged (Scenario 5), unused deficit carries over across rounds, ensuring small packets achieve their exact theoretical $\approx 7.49:1$ dispatch ratio relative to large packets ($J = 1.0000$).
 
-### 6.3 Fairness Metric: Jain's Fairness Index
+### 6.3 FIFO vs. DRR Dispatch Workflow Comparison
+
+```mermaid
+flowchart TD
+    subgraph FIFO ["Strict FIFO Dispatch (Packet-Blind)"]
+        direction TB
+        F_IN["Inspect Queue Heads"]
+        F_CMP["Compare Ingress Timestamps"]
+        F_DISP["Dispatch Oldest Timestamp Packet"]
+        F_RESULT["1:1 Packet Alternation<br/>Small (552B) vs Large (4136B)<br/>88% Byte Allocation to Bulk Flow<br/>J = 0.6294 (Severe Inequity)"]
+        F_IN --> F_CMP --> F_DISP --> F_RESULT
+    end
+
+    subgraph DRR ["Deficit Round-Robin Dispatch (Byte-Aware)"]
+        direction TB
+        D_IN["Visit Queue i"]
+        D_CHK{"Deficit[i] ≥ Packet Bytes?"}
+        D_ADD["Deficit[i] += Quantum (4136B)"]
+        D_DEQ["Dequeue & Dispatch Packet<br/>Deficit[i] -= Packet Bytes"]
+        D_MORE{"More Deficit for Head Packet?"}
+        D_ADV["Advance to (i + 1) % N"]
+        D_RESULT["7.49:1 Packet Ratio<br/>Small flow gets ~7.5 pkts per large pkt<br/>50/50 Byte Equity<br/>J = 1.0000 (Near-Perfect Parity)"]
+
+        D_IN --> D_CHK
+        D_CHK -- No --> D_ADD --> D_CHK
+        D_CHK -- Yes --> D_DEQ --> D_MORE
+        D_MORE -- Yes --> D_DEQ
+        D_MORE -- No --> D_ADV --> D_RESULT
+    end
+```
+
+### 6.4 Fairness Metric: Jain's Fairness Index
 
 Byte allocation fairness among $n$ active senders transmitting byte volumes $x_1, x_2, \dots, x_n$ is computed as:
 $$J(x_1, x_2, \dots, x_n) = \frac{\left( \sum_{i=1}^n x_i \right)^2}{n \sum_{i=1}^n x_i^2}$$

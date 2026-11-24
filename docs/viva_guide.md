@@ -190,6 +190,33 @@ No. In the live 3-run experimental evaluation of Scenario 1 (Normal Traffic), al
 
 Config A exhibited lower measured transit latency ($p99 = 5615.4\ \mu\text{s}$ vs $11,200.7 - 15,057.1\ \mu\text{s}$) because its static window restricted queue buildup. Config D's primary demonstrated advantage is byte fairness under continuous asymmetric backlog (Scenario 5), where it delivers $J = 1.0000$ (exact: $0.99997$) compared to $J = 0.6294$ for Config A.
 
+### Q19: What is the computational time complexity of the Deficit Round-Robin (DRR) packet scheduler?
+**Answer:**
+- **Amortized Time Complexity**: **$O(1)$ per packet**.
+- **Theoretical Basis**: In classic Fair Queueing (e.g., GPS or WFQ), packets must be ordered by simulated virtual finish times, requiring an $O(\log N)$ priority queue or heap insertion where $N$ is active flows.
+- **DRR Advantage**: Shreedhar and Varghese (SIGCOMM 1995) proved that if the quantum $Q$ is chosen such that $Q \ge \text{MaxPacketSize}$ (in our system, $Q = 4136\text{ bytes} \ge 4136\text{ bytes}$), **every backlogged flow visited in a round is guaranteed to transmit at least one packet**.
+- Therefore, the number of empty queue inspections or round-robin pointer advancements is strictly bounded by the number of packets serviced. Dequeuing, decrementing the deficit, and pointer advancement are constant-time array/pointer operations, achieving true $O(1)$ per-packet scheduling.
+
+### Q20: Why choose Credit-Based Backpressure over a TCP-style Sliding Window?
+**Answer:**
+1. **Upfront Buffer Reservation**: In credit-based control, a credit is an explicit token that reserves buffer slots *before* transmission occurs. The broker guarantees that total outstanding credits across all senders never exceed buffer capacity:
+   $$\sum_{i=1}^N \text{GrantedCredits}_i \le \text{GlobalCapacity}$$
+2. **Deterministic Withholding vs Retraction**: In TCP sliding windows, shrinking an already-advertised window ("reneging") is heavily discouraged by RFC 793 because in-flight data may already be transmitted, leading to spurious retransmits and dropped frames. In credit-based backpressure, granted credits are non-revocable; when the controller detects congestion, it simply withholds new grants until outstanding packets drain, avoiding window renegotiation race conditions.
+3. **Zero Retransmission Overhead**: Unlike TCP windowing which relies on timeouts and segment drops to signal congestion, user-space credit backpressure eliminates packet loss entirely (0 drops across all 72 scenario runs).
+
+### Q21: What are the trade-offs between User-Space IPC mediation and In-Kernel IPC (e.g., Android Binder, kdbus)?
+**Answer:**
+- **User-Space IPC (Our Architecture)**:
+  - *Advantages*:
+    1. **Policy Agility**: Flow control algorithms, EWMA smoothing parameters, hysteresis thresholds, and DRR quanta can be dynamically modified and tuned without recompiling the Linux kernel.
+    2. **Fault Isolation**: A fatal bug or assertion failure in the user-space broker terminates only the broker process; the Linux kernel remains completely unharmed and stable.
+    3. **Observability & Tooling**: Easily analyzed and profiled with standard user-space debugging tools (AddressSanitizer, UBSan, `gprof`, `perf`).
+    4. **Zero Root Privilege**: Runs as an unprivileged user process over standard POSIX UNIX domain sockets.
+  - *Trade-Offs*: Requires 2 IPC hops (Sender $\to$ Kernel $\to$ Broker $\to$ Kernel $\to$ Receiver), incurring 4 context switches per message instead of 2 for direct peer-to-peer or kernel-mediated IPC.
+- **In-Kernel IPC (e.g., Android Binder)**:
+  - *Advantages*: Can implement single-copy (via kernel buffer mapping) or zero-copy IPC; direct thread pool scheduling and priority inheritance.
+  - *Trade-Offs*: High kernel complexity; kernel security attack surface; rigid scheduling policies; kernel crashes cause whole-system kernel panics.
+
 ---
 
 ## 6. Summary of Key Experimental Numbers to Memorize
